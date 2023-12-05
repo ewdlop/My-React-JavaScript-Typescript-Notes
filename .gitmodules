@@ -1,0 +1,9 @@
+[submodule "Typescript-Notes"]
+	path = Typescript-Notes
+	url = https://github.com/ewdlop/Typescript-Notes.git
+[submodule "React-typescript-notes"]
+	path = React-typescript-notes
+	url = https://github.com/ewdlop/React-typescript-notes.git
+[submodule "PuzzleGame"]
+	path = PuzzleGame
+	url = https://github.com/ewdlop/PuzzleGame.git
