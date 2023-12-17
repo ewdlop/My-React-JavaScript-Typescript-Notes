@@ -52,7 +52,16 @@ const scene = {
     distance: 2
 }
 
-function scaleCube(vertices, scale) {
+
+const camera = {
+    fov : 90 * (Math.PI / 180),
+    aspect : window.innerWidth / window.innerHeight,
+    near : 0.1,
+    far : 1000
+}
+
+
+function scaleVertices(vertices, scale) {
     let scaledVertices = vertices.map(vertex => {
         return {
             x: vertex.x * scale.X,
@@ -67,7 +76,7 @@ function scaleCube(vertices, scale) {
 }
 
 
-function rotateCube(vertices, angle) {
+function rotatedVertices(vertices, angle) {
     let rotatedVertices = vertices.map(v => {
         // Original coordinates
         const originalX = v.x;
@@ -94,8 +103,50 @@ function rotateCube(vertices, angle) {
     return rotatedVertices;
 }
 
+function createPerspectiveMatrix(fov, aspect, near, far) {
+    const f = 1.0 / Math.tan(fov / 2);
+    const rangeInv = 1 / (near - far);
 
-function projectCube(vertices, scene) {
+    return [
+        f / aspect, 0, 0, 0,
+        0, f, 0, 0,
+        0, 0, (near + far) * rangeInv, -1,
+        0, 0, near * far * rangeInv * 2, 0
+    ];
+}
+
+
+function applyPerspective(vertex, perspectiveMatrix) {
+    // Convert the vertex into a 4D point for matrix multiplication
+    const point = [vertex.x, vertex.y, vertex.z, 1];
+    const transformed = [];
+
+    // Matrix multiplication
+    for (let i = 0; i < 4; i++) {
+        transformed[i] = point[0] * perspectiveMatrix[i * 4 + 0] +
+                         point[1] * perspectiveMatrix[i * 4 + 1] +
+                         point[2] * perspectiveMatrix[i * 4 + 2] +
+                         point[3] * perspectiveMatrix[i * 4 + 3];
+    }
+
+    // Convert back to 3D point
+    if (transformed[3] !== 0) {
+        transformed[0] /= transformed[3];
+        transformed[1] /= transformed[3];
+        transformed[2] /= transformed[3];
+    }
+
+    return { x: transformed[0], y: transformed[1], z: transformed[2] };
+}
+
+
+function isVertexInFrustum(vertex, frustum) {
+    // Implement frustum culling logic here
+    // This usually involves checking if the vertex is within the frustum boundaries
+    // Return true if inside the frustum, false otherwise
+}
+
+function projectVertices(vertices, scene) {
 
     return vertices.map(v => {
         var z = v.z + scene.distance;
@@ -106,6 +157,7 @@ function projectCube(vertices, scene) {
     });
 
 }
+
 
 function drawScene() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -121,10 +173,17 @@ function drawScene() {
 
 function drawCube(cube, angle) {
 
-    let newCubeVertices = rotateCube(cube.vertices, angle);
-
+    let newCubeVertices = rotatedVertices(cube.vertices, angle);
+    const perspectiveMatrix = createPerspectiveMatrix(camera.fov, camera.aspect, camera.near, camera.far);
+    let transformedCube = {
+        vertices: cube.vertices.map(v => {
+            let transformedVertex = applyPerspective(v, perspectiveMatrix);
+            return isVertexInFrustum(transformedVertex, /* your frustum */) ? transformedVertex : null;
+        }),
+        edges: cube.edges
+    };
     // Project vertices to 2D
-    var projectedVertices = projectCube(newCubeVertices, scene);
+    var projectedVertices = projectVertices(newCubeVertices, scene);
 
     cube.edges.forEach(function (edge) {
         ctx.beginPath();
@@ -135,3 +194,6 @@ function drawCube(cube, angle) {
 }
 
 drawScene();
+
+
+
