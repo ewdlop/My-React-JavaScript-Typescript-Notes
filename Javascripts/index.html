@@ -2,50 +2,20 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>3D Content with Three.js</title>
+    <title>3D Cube with Canvas</title>
     <style>
-        body { margin: 0; }
-        canvas { display: block; }
+        body, html {
+            margin: 0;
+            padding: 0;
+            overflow: hidden; /* Avoid scrollbars */
+        }
+        canvas {
+            display: block; /* Remove default margin of canvas */
+        }
     </style>
 </head>
 <body>
-    <!-- The container for the 3D canvas -->
-    <div id="container"></div>
-
-    <!-- Include Three.js library -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-
-    <script>
-        // Your 3D code will go here
-
-        // Set up the scene, camera, and renderer
-        var scene = new THREE.Scene();
-        var camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        var renderer = new THREE.WebGLRenderer();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        document.getElementById('container').appendChild(renderer.domElement);
-
-        // Add a cube
-        var geometry = new THREE.BoxGeometry();
-        var material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-        var cube = new THREE.Mesh(geometry, material);
-        scene.add(cube);
-
-        camera.position.z = 5;
-
-        // Animation loop
-        function animate() {
-            requestAnimationFrame(animate);
-
-            // Rotate the cube
-            cube.rotation.x += 0.01;
-            cube.rotation.y += 0.01;
-
-            // Render the scene
-            renderer.render(scene, camera);
-        }
-
-        animate();
-    </script>
+    <canvas id="myCanvas" width="100%" height="100%"></canvas>
+    <script src="3d.js"></script>
 </body>
 </html>
