@@ -96,6 +96,7 @@ $("p").on("click", function(){
     $(this).hide();
 });
 
+// event object selector and method together
 $("p").on({
     mouseenter: function(){
       $(this).css("background-color", "lightgray");
@@ -106,4 +107,18 @@ $("p").on({
     click: function(){
       $(this).css("background-color", "yellow");
     }
+});
+
+// hide and show
+$("#hide").click(function(){
+    $("p").hide();
+});
+  
+$("#show").click(function(){
+    $("p").show();
+});
+
+// hide and no callback
+$("button").click(function(){
+    $("p").hide(1000);
 });
