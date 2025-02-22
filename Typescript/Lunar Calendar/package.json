@@ -1,0 +1,25 @@
+{
+  "name": "lunar-calendar",
+  "version": "1.0.0",
+  "description": "A TypeScript implementation of a lunar calendar",
+  "main": "dist/index.js",
+  "types": "dist/types/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "start": "serve"
+  },
+  "keywords": [
+    "lunar",
+    "calendar",
+    "moon",
+    "phases",
+    "typescript"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "serve": "^14.2.0",
+    "typescript": "^5.0.4"
+  }
+}
