@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Apricity - Winter Sunlight Effect</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #000;
+        }
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+        .info {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            color: rgba(255, 255, 255, 0.7);
+            font-family: Arial, sans-serif;
+            pointer-events: none;
+            text-shadow: 0px 0px 4px rgba(0, 0, 0, 0.5);
+        }
+        h1 {
+            font-size: 24px;
+            margin: 0 0 10px 0;
+        }
+        p {
+            font-size: 16px;
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="apricity-canvas"></canvas>
+    <div class="info">
+        <h1>Apricity</h1>
+        <p>The warmth of the sun in winter</p>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gl-matrix/2.8.1/gl-matrix-min.js"></script>
+    <script>
+        // Vertex shader
+        const vertexShaderSource = `
+        attribute vec4 aVertexPosition;
+        attribute vec2 aTextureCoord;
+
+        uniform mat4 uModelViewMatrix;
+        uniform mat4 uProjectionMatrix;
+
+        varying highp vec2 vTextureCoord;
+
+        void main() {
+          gl_Position = uProjectionMatrix * uModelViewMatrix * aVertexPosition;
+          vTextureCoord = aTextureCoord;
+        }
+        `;
+
+        // Fragment shader for the apricity effect
+        const fragmentShaderSource = `
+        precision mediump float;
+
+        varying highp vec2 vTextureCoord;
+
+        uniform float uTime;
+
+        // Function to create a circular glow effect
+        float circle(vec2 position, float radius, float feather) {
+          return 1.0 - smoothstep(radius - feather, radius, length(position));
+        }
+
+        void main() {
+          // Normalize coordinates from center
+          vec2 position = vTextureCoord * 2.0 - 1.0;
+          
+          // Create a cool blue winter background
+          vec3 bgColor = vec3(0.7, 0.8, 0.9) * (0.5 + 0.5 * vTextureCoord.y);
+          
+          // Create a warm sun with subtle animation
+          float time = uTime * 0.5;
+          vec2 sunPosition = vec2(0.2 * sin(time * 0.2), 0.1 * cos(time * 0.3));
+          
+          // Main sun glow
+          float sunGlow = circle(position - sunPosition, 0.4, 0.4);
+          
+          // Warmer inner sun
+          float innerSun = circle(position - sunPosition, 0.2, 0.1);
+          
+          // Combine colors
+          vec3 sunColor = mix(
+            vec3(1.0, 0.8, 0.4), // Outer warm glow
+            vec3(1.0, 0.6, 0.2), // Inner warm core
+            innerSun
+          );
+          
+          // Combine background and sun with subtle ray effects
+          float rayEffect = 0.1 * sin(atan(position.y - sunPosition.y, position.x - sunPosition.x) * 8.0 + time * 2.0);
+          sunGlow += rayEffect * sunGlow;
+          
+          // Final color is the background with the sun blended on top
+          vec3 finalColor = mix(bgColor, sunColor, sunGlow * 0.8);
+          
+          // Add a subtle vignette
+          float vignette = 1.0 - smoothstep(0.5, 1.5, length(position));
+          finalColor *= mix(0.8, 1.0, vignette);
+          
+          gl_FragColor = vec4(finalColor, 1.0);
+        }
+        `;
+
+        // Main application class
+        class ApricityEffect {
+          constructor(canvasId) {
+            // Initialize the canvas and WebGL context
+            this.canvas = document.getElementById(canvasId);
+            this.gl = this.canvas.getContext('webgl');
+
+            if (!this.gl) {
+              console.error('Unable to initialize WebGL. Your browser may not support it.');
+              return;
+            }
+
+            // Set canvas size to full window
+            this.resizeCanvas();
+            window.addEventListener('resize', () => this.resizeCanvas());
+
+            // Initialize the shaders and program
+            const shaderProgram = this.initShaderProgram(vertexShaderSource, fragmentShaderSource);
+
+            this.programInfo = {
+              program: shaderProgram,
+              attribLocations: {
+                vertexPosition: this.gl.getAttribLocation(shaderProgram, 'aVertexPosition'),
+                textureCoord: this.gl.getAttribLocation(shaderProgram, 'aTextureCoord'),
+              },
+              uniformLocations: {
+                projectionMatrix: this.gl.getUniformLocation(shaderProgram, 'uProjectionMatrix'),
+                modelViewMatrix: this.gl.getUniformLocation(shaderProgram, 'uModelViewMatrix'),
+                time: this.gl.getUniformLocation(shaderProgram, 'uTime'),
+              },
+            };
+
+            // Initialize the buffers
+            this.buffers = this.initBuffers();
+            this.then = 0;
+
+            // Start the render loop
+            requestAnimationFrame(this.render.bind(this));
+          }
+
+          resizeCanvas() {
+            this.canvas.width = window.innerWidth;
+            this.canvas.height = window.innerHeight;
+            this.gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+          }
+
+          initShaderProgram(vsSource, fsSource) {
+            const vertexShader = this.loadShader(this.gl.VERTEX_SHADER, vsSource);
+            const fragmentShader = this.loadShader(this.gl.FRAGMENT_SHADER, fsSource);
+
+            // Create the shader program
+            const shaderProgram = this.gl.createProgram();
+            this.gl.attachShader(shaderProgram, vertexShader);
+            this.gl.attachShader(shaderProgram, fragmentShader);
+            this.gl.linkProgram(shaderProgram);
+
+            // Check if program linking was successful
+            if (!this.gl.getProgramParameter(shaderProgram, this.gl.LINK_STATUS)) {
+              console.error('Unable to initialize the shader program: ' + this.gl.getProgramInfoLog(shaderProgram));
+              return null;
+            }
+
+            return shaderProgram;
+          }
+
+          loadShader(type, source) {
+            const shader = this.gl.createShader(type);
+
+            // Send the source to the shader object
+            this.gl.shaderSource(shader, source);
+
+            // Compile the shader program
+            this.gl.compileShader(shader);
+
+            // Check if compilation was successful
+            if (!this.gl.getShaderParameter(shader, this.gl.COMPILE_STATUS)) {
+              console.error('An error occurred compiling the shaders: ' + this.gl.getShaderInfoLog(shader));
+              this.gl.deleteShader(shader);
+              return null;
+            }
+
+            return shader;
+          }
+
+          initBuffers() {
+            // Create a buffer for the square's positions
+            const positionBuffer = this.gl.createBuffer();
+            this.gl.bindBuffer(this.gl.ARRAY_BUFFER, positionBuffer);
+
+            // Create a square as two triangles
+            const positions = [
+              -1.0, -1.0,  // Bottom left
+               1.0, -1.0,  // Bottom right
+               1.0,  1.0,  // Top right
+              -1.0,  1.0,  // Top left
+            ];
+
+            this.gl.bufferData(this.gl.ARRAY_BUFFER, new Float32Array(positions), this.gl.STATIC_DRAW);
+
+            // Create a buffer for texture coordinates
+            const textureCoordBuffer = this.gl.createBuffer();
+            this.gl.bindBuffer(this.gl.ARRAY_BUFFER, textureCoordBuffer);
+
+            const textureCoordinates = [
+              0.0, 0.0,  // Bottom left
+              1.0, 0.0,  // Bottom right
+              1.0, 1.0,  // Top right
+              0.0, 1.0,  // Top left
+            ];
+
+            this.gl.bufferData(this.gl.ARRAY_BUFFER, new Float32Array(textureCoordinates), this.gl.STATIC_DRAW);
+
+            // Create a buffer for indices
+            const indexBuffer = this.gl.createBuffer();
+            this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+
+            // Define indices for the triangles
+            const indices = [
+              0, 1, 2,    // First triangle
+              0, 2, 3,    // Second triangle
+            ];
+
+            this.gl.bufferData(this.gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), this.gl.STATIC_DRAW);
+
+            return {
+              position: positionBuffer,
+              textureCoord: textureCoordBuffer,
+              indices: indexBuffer,
+            };
+          }
+
+          render(now) {
+            // Convert time to seconds
+            now *= 0.001;
+            const deltaTime = now - this.then;
+            this.then = now;
+
+            // Clear the canvas
+            this.gl.clearColor(0.0, 0.0, 0.0, 1.0);
+            this.gl.clearDepth(1.0);
+            this.gl.enable(this.gl.DEPTH_TEST);
+            this.gl.depthFunc(this.gl.LEQUAL);
+            this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
+
+            // Create the perspective matrix
+            const projectionMatrix = mat4.create();
+            mat4.ortho(projectionMatrix, -1, 1, -1, 1, 0.1, 100);
+
+            // Set the drawing position to the "identity" point at the center of the scene
+            const modelViewMatrix = mat4.create();
+            mat4.translate(modelViewMatrix, modelViewMatrix, [0.0, 0.0, -1.0]);
+
+            // Set up the vertex positions
+            {
+              const numComponents = 2;
+              const type = this.gl.FLOAT;
+              const normalize = false;
+              const stride = 0;
+              const offset = 0;
+              this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.buffers.position);
+              this.gl.vertexAttribPointer(
+                this.programInfo.attribLocations.vertexPosition,
+                numComponents,
+                type,
+                normalize,
+                stride,
+                offset);
+              this.gl.enableVertexAttribArray(this.programInfo.attribLocations.vertexPosition);
+            }
+
+            // Set up the texture coordinates
+            {
+              const numComponents = 2;
+              const type = this.gl.FLOAT;
+              const normalize = false;
+              const stride = 0;
+              const offset = 0;
+              this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.buffers.textureCoord);
+              this.gl.vertexAttribPointer(
+                this.programInfo.attribLocations.textureCoord,
+                numComponents,
+                type,
+                normalize,
+                stride,
+                offset);
+              this.gl.enableVertexAttribArray(this.programInfo.attribLocations.textureCoord);
+            }
+
+            // Bind the index buffer
+            this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, this.buffers.indices);
+
+            // Use the program
+            this.gl.useProgram(this.programInfo.program);
+
+            // Set the shader uniforms
+            this.gl.uniformMatrix4fv(
+              this.programInfo.uniformLocations.projectionMatrix,
+              false,
+              projectionMatrix);
+            this.gl.uniformMatrix4fv(
+              this.programInfo.uniformLocations.modelViewMatrix,
+              false,
+              modelViewMatrix);
+            this.gl.uniform1f(
+              this.programInfo.uniformLocations.time,
+              now);
+
+            // Draw the elements
+            const vertexCount = 6;
+            const type = this.gl.UNSIGNED_SHORT;
+            const offset = 0;
+            this.gl.drawElements(this.gl.TRIANGLES, vertexCount, type, offset);
+
+            // Request the next frame
+            requestAnimationFrame(this.render.bind(this));
+          }
+        }
+
+        // Initialize the application when the page loads
+        window.onload = () => {
+          new ApricityEffect('apricity-canvas');
+        };
+    </script>
+</body>
+</html>
