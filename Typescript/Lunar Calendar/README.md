@@ -152,3 +152,147 @@ The `LunarCalendar` class provides the following methods:
 - `constructor(elementId: string)` - Initializes the calendar in the specified container
 - `refresh()` - Manually refreshes the calendar
 - `generateCalendar(year: number)` - Generates the calendar for a specific year
+
+## How to Transpile TypeScript into JavaScript
+
+To convert (transpile) TypeScript code into JavaScript, you'll need to follow these steps:
+
+## Method 1: Using the TypeScript Compiler (tsc)
+
+### Step 1: Install TypeScript
+First, install TypeScript globally or in your project:
+
+```bash
+# Global installation
+npm install -g typescript
+
+# Project installation
+npm install --save-dev typescript
+```
+
+### Step 2: Create a TypeScript Configuration File
+Create a `tsconfig.json` file in your project root:
+
+```json
+{
+  "compilerOptions": {
+    "target": "es2015",
+    "module": "commonjs",
+    "outDir": "./dist",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules"]
+}
+```
+
+### Step 3: Transpile Your Code
+Run the TypeScript compiler:
+
+```bash
+# If installed globally
+tsc
+
+# If installed locally in your project
+npx tsc
+```
+
+Your transpiled JavaScript files will be placed in the `dist` directory (or whatever you specified in `outDir`).
+
+## Method 2: Using Build Tools
+
+### Option A: Webpack with ts-loader
+
+1. Install required packages:
+```bash
+npm install --save-dev webpack webpack-cli typescript ts-loader
+```
+
+2. Configure webpack (`webpack.config.js`):
+```javascript
+const path = require('path');
+
+module.exports = {
+  entry: './src/index.ts',
+  module: {
+    rules: [
+      {
+        test: /\.tsx?$/,
+        use: 'ts-loader',
+        exclude: /node_modules/,
+      },
+    ],
+  },
+  resolve: {
+    extensions: ['.tsx', '.ts', '.js'],
+  },
+  output: {
+    filename: 'bundle.js',
+    path: path.resolve(__dirname, 'dist'),
+  },
+};
+```
+
+3. Run webpack:
+```bash
+npx webpack
+```
+
+### Option B: Using Babel
+
+1. Install required packages:
+```bash
+npm install --save-dev @babel/core @babel/cli @babel/preset-typescript @babel/preset-env
+```
+
+2. Create a Babel configuration file (`.babelrc`):
+```json
+{
+  "presets": [
+    "@babel/preset-env",
+    "@babel/preset-typescript"
+  ]
+}
+```
+
+3. Run Babel:
+```bash
+npx babel src --out-dir dist --extensions ".ts,.tsx"
+```
+
+## Method 3: Online Transpilers
+
+For quick testing, you can use online transpilers:
+
+1. [TypeScript Playground](https://www.typescriptlang.org/play/)
+2. [Babel REPL](https://babeljs.io/repl)
+
+## Method 4: Integrated Development Environment (IDE)
+
+Many IDEs like VS Code, WebStorm, or Visual Studio can automatically transpile TypeScript to JavaScript when you save your files.
+
+In VS Code:
+1. Open your project
+2. Press `Ctrl+Shift+B` (or `Cmd+Shift+B` on macOS)
+3. Select "tsc: watch - tsconfig.json" to automatically transpile on save
+
+## Continuous Development Workflow
+
+For ongoing development, set up a watch process:
+
+```bash
+# Using tsc watch mode
+tsc --watch
+
+# Or add a script in package.json
+# "scripts": { "watch": "tsc --watch" }
+# Then run:
+npm run watch
+```
+
+This will automatically transpile your TypeScript files whenever you make changes.
+
+## Power by Claude AI
