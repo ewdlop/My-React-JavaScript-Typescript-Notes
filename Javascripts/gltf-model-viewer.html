@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>glTF Model Viewer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        .container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+        }
+
+        .sidebar {
+            width: 320px;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            padding: 20px;
+            overflow-y: auto;
+            box-shadow: 2px 0 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .sidebar h1 {
+            font-size: 24px;
+            margin-bottom: 20px;
+            color: #4fc3f7;
+            text-align: center;
+        }
+
+        .model-grid {
+            display: grid;
+            gap: 12px;
+        }
+
+        .model-card {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            padding: 15px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .model-card:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        .model-card.active {
+            background: rgba(79, 195, 247, 0.3);
+            border-color: #4fc3f7;
+        }
+
+        .model-card h3 {
+            font-size: 16px;
+            margin-bottom: 8px;
+            color: #fff;
+        }
+
+        .model-card p {
+            font-size: 12px;
+            color: #ccc;
+            line-height: 1.4;
+        }
+
+        .model-card .complexity {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 2px 6px;
+            border-radius: 12px;
+            font-size: 10px;
+            color: #fff;
+        }
+
+        .complexity.simple { background: rgba(76, 175, 80, 0.6); }
+        .complexity.medium { background: rgba(255, 193, 7, 0.6); }
+        .complexity.complex { background: rgba(244, 67, 54, 0.6); }
+
+        .viewer {
+            flex: 1;
+            position: relative;
+            background: radial-gradient(circle at center, #2c3e50 0%, #1a252f 100%);
+        }
+
+        .controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+        }
+
+        .controls h3 {
+            color: #4fc3f7;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+
+        .control-group {
+            margin-bottom: 12px;
+        }
+
+        .control-group label {
+            display: block;
+            font-size: 12px;
+            color: #ccc;
+            margin-bottom: 4px;
+        }
+
+        .control-group input[type="range"] {
+            width: 100%;
+            margin-bottom: 5px;
+        }
+
+        .control-group input[type="checkbox"] {
+            margin-right: 8px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .btn {
+            padding: 6px 12px;
+            background: #4fc3f7;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            transition: background 0.3s;
+        }
+
+        .btn:hover {
+            background: #29b6f6;
+        }
+
+        .btn.secondary {
+            background: #666;
+        }
+
+        .btn.secondary:hover {
+            background: #777;
+        }
+
+        .info-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+            min-width: 250px;
+            display: none;
+        }
+
+        .info-panel.visible {
+            display: block;
+        }
+
+        .info-panel h3 {
+            color: #4fc3f7;
+            margin-bottom: 10px;
+        }
+
+        .info-panel p {
+            font-size: 12px;
+            color: #ccc;
+            margin-bottom: 5px;
+        }
+
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 200;
+            background: rgba(0, 0, 0, 0.9);
+            padding: 20px 40px;
+            border-radius: 10px;
+            color: #4fc3f7;
+            font-size: 16px;
+            display: none;
+        }
+
+        .error {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 200;
+            background: rgba(244, 67, 54, 0.9);
+            padding: 20px;
+            border-radius: 10px;
+            color: white;
+            text-align: center;
+            display: none;
+        }
+
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+        }
+
+        .stats {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 11px;
+            color: #4fc3f7;
+            display: none;
+        }
+
+        .sidebar::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .sidebar::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .sidebar::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <h1>glTF Model Viewer</h1>
+            <div class="model-grid" id="model-grid">
+                <!-- Model cards will be populated here -->
+            </div>
+        </div>
+
+        <div class="viewer">
+            <div class="loading" id="loading">Loading model...</div>
+            <div class="error" id="error">
+                <h3>Error Loading Model</h3>
+                <p id="error-message">Failed to load the selected model. Please try another one.</p>
+            </div>
+
+            <div class="stats" id="stats">
+                <div>FPS: <span id="fps">0</span></div>
+                <div>Triangles: <span id="triangles">0</span></div>
+                <div>Vertices: <span id="vertices">0</span></div>
+            </div>
+
+            <div class="controls">
+                <h3>Scene Controls</h3>
+                
+                <div class="control-group">
+                    <label>Rotation Speed</label>
+                    <input type="range" id="rotation-speed" min="0" max="2" step="0.1" value="0.5">
+                </div>
+
+                <div class="control-group">
+                    <label>Camera Distance</label>
+                    <input type="range" id="camera-distance" min="2" max="20" step="0.5" value="8">
+                </div>
+
+                <div class="control-group">
+                    <label>Light Intensity</label>
+                    <input type="range" id="light-intensity" min="0.1" max="3" step="0.1" value="1">
+                </div>
+
+                <div class="control-group">
+                    <label>
+                        <input type="checkbox" id="auto-rotate" checked>
+                        Auto Rotate
+                    </label>
+                </div>
+
+                <div class="control-group">
+                    <label>
+                        <input type="checkbox" id="show-wireframe">
+                        Wireframe
+                    </label>
+                </div>
+
+                <div class="control-group">
+                    <label>
+                        <input type="checkbox" id="show-stats">
+                        Show Stats
+                    </label>
+                </div>
+
+                <div class="button-group">
+                    <button class="btn" onclick="resetCamera()">Reset View</button>
+                    <button class="btn secondary" onclick="toggleFullscreen()">Fullscreen</button>
+                </div>
+            </div>
+
+            <div class="info-panel" id="info-panel">
+                <h3 id="model-title">Model Information</h3>
+                <p><strong>File:</strong> <span id="model-file">-</span></p>
+                <p><strong>Size:</strong> <span id="model-size">-</span></p>
+                <p><strong>Description:</strong> <span id="model-description">-</span></p>
+            </div>
+
+            <div id="canvas-container"></div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script>
+        // Global variables
+        let scene, camera, renderer, controls;
+        let currentModel = null;
+        let mixer = null;
+        let clock = new THREE.Clock();
+        let animationId;
+        let stats = { fps: 0, triangles: 0, vertices: 0 };
+        let lastTime = 0;
+        let frameCount = 0;
+
+        // Model database with sample glTF models from Khronos Group
+        const models = [
+            {
+                name: "Duck",
+                file: "Duck.gltf",
+                url: "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Duck/glTF/Duck.gltf",
+                description: "A simple duck model, great for testing basic glTF loading",
+                complexity: "simple"
+            },
+            {
+                name: "Box",
+                file: "Box.gltf",
+                url: "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Box/glTF/Box.gltf",
+                description: "Basic textured cube with simple materials",
+                complexity: "simple"
+            },
+            {
+                name: "Avocado",
+                file: "Avocado.gltf",
+                url: "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Avocado/glTF/Avocado.gltf",
+                description: "Photorealistic avocado with detailed textures",
+                complexity: "medium"
+            },
+            {
+                name: "Damaged Helmet",
+                file: "DamagedHelmet.gltf",
+                url: "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/DamagedHelmet/glTF/DamagedHelmet.gltf",
+                description: "Battle-worn helmet with PBR materials",
+                complexity: "medium"
+            },
+            {
+                name: "Flight Helmet",
+                file: "FlightHelmet.gltf",
+                url: "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/FlightHelmet/glTF/FlightHelmet.gltf",
+                description: "Detailed flight helmet with complex materials",
+                complexity: "complex"
+            },
+            {
+                name: "Lantern",
+                file: "Lantern.gltf",
+                url: "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Lantern/glTF/Lantern.gltf",
+                description: "Antique lantern with emissive materials",
+                complexity: "medium"
+            },
+            {
+                name: "Suzanne",
+                file: "Suzanne.gltf",
+                url: "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Suzanne/glTF/Suzanne.gltf",
+                description: "Blender's iconic monkey head",
+                complexity: "simple"
+            },
+            {
+                name: "Animated Morphs",
+                file: "AnimatedMorphCube.gltf",
+                url: "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/AnimatedMorphCube/glTF/AnimatedMorphCube.gltf",
+                description: "Cube with animated morph targets",
+                complexity: "medium"
+            },
+            {
+                name: "Rigged Figure",
+                file: "RiggedFigure.gltf",
+                url: "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/RiggedFigure/glTF/RiggedFigure.gltf",
+                description: "Animated character with skeletal animation",
+                complexity: "complex"
+            },
+            {
+                name: "Sci-Fi Helmet",
+                file: "SciFiHelmet.gltf",
+                url: "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/SciFiHelmet/glTF/SciFiHelmet.gltf",
+                description: "Futuristic helmet with advanced shading",
+                complexity: "complex"
+            }
+        ];
+
+        // Initialize the application
+        function init() {
+            setupScene();
+            populateModelGrid();
+            setupEventListeners();
+            loadModel(models[0]); // Load first model by default
+            animate();
+        }
+
+        function setupScene() {
+            const container = document.getElementById('canvas-container');
+
+            // Scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x222222);
+
+            // Camera
+            camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
+            camera.position.set(0, 0, 8);
+
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1;
+            container.appendChild(renderer.domElement);
+
+            // Lighting
+            setupLighting();
+
+            // Simple orbit controls (manual implementation)
+            setupControls();
+        }
+
+        function setupLighting() {
+            // Environment light
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.3);
+            scene.add(ambientLight);
+
+            // Main directional light
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(5, 5, 5);
+            directionalLight.castShadow = true;
+            directionalLight.shadow.mapSize.width = 2048;
+            directionalLight.shadow.mapSize.height = 2048;
+            scene.add(directionalLight);
+
+            // Fill light
+            const fillLight = new THREE.DirectionalLight(0x8bb6ff, 0.4);
+            fillLight.position.set(-5, 2, -5);
+            scene.add(fillLight);
+
+            // Rim light
+            const rimLight = new THREE.DirectionalLight(0xffffff, 0.6);
+            rimLight.position.set(0, 5, -10);
+            scene.add(rimLight);
+        }
+
+        function setupControls() {
+            let isMouseDown = false;
+            let mouseX = 0, mouseY = 0;
+            let targetRotationX = 0, targetRotationY = 0;
+            let rotationX = 0, rotationY = 0;
+
+            renderer.domElement.addEventListener('mousedown', (event) => {
+                isMouseDown = true;
+                mouseX = event.clientX;
+                mouseY = event.clientY;
+            });
+
+            renderer.domElement.addEventListener('mousemove', (event) => {
+                if (!isMouseDown) return;
+
+                const deltaX = event.clientX - mouseX;
+                const deltaY = event.clientY - mouseY;
+
+                targetRotationY += deltaX * 0.01;
+                targetRotationX += deltaY * 0.01;
+
+                mouseX = event.clientX;
+                mouseY = event.clientY;
+            });
+
+            renderer.domElement.addEventListener('mouseup', () => {
+                isMouseDown = false;
+            });
+
+            renderer.domElement.addEventListener('wheel', (event) => {
+                camera.position.z += event.deltaY * 0.01;
+                camera.position.z = Math.max(2, Math.min(20, camera.position.z));
+            });
+
+            // Update rotation smoothly
+            function updateControls() {
+                rotationX += (targetRotationX - rotationX) * 0.1;
+                rotationY += (targetRotationY - rotationY) * 0.1;
+
+                if (currentModel) {
+                    currentModel.rotation.x = rotationX;
+                    currentModel.rotation.y = rotationY;
+                }
+            }
+
+            // Store update function for use in animate loop
+            window.updateControls = updateControls;
+        }
+
+        function populateModelGrid() {
+            const grid = document.getElementById('model-grid');
+            
+            models.forEach((model, index) => {
+                const card = document.createElement('div');
+                card.className = 'model-card';
+                if (index === 0) card.classList.add('active');
+                
+                card.innerHTML = `
+                    <div class="complexity ${model.complexity}">${model.complexity}</div>
+                    <h3>${model.name}</h3>
+                    <p>${model.description}</p>
+                `;
+                
+                card.addEventListener('click', () => {
+                    document.querySelectorAll('.model-card').forEach(c => c.classList.remove('active'));
+                    card.classList.add('active');
+                    loadModel(model);
+                });
+                
+                grid.appendChild(card);
+            });
+        }
+
+        function loadModel(modelData) {
+            showLoading(true);
+            hideError();
+            
+            // Clear previous model
+            if (currentModel) {
+                scene.remove(currentModel);
+            }
+            
+            // Clear previous animations
+            if (mixer) {
+                mixer.stopAllAction();
+                mixer = null;
+            }
+            
+            // Update info panel
+            updateInfoPanel(modelData);
+            
+            // Load new model using GLTFLoader
+            const loader = new THREE.GLTFLoader();
+            
+            loader.load(
+                modelData.url,
+                (gltf) => {
+                    showLoading(false);
+                    
+                    currentModel = gltf.scene;
+                    scene.add(currentModel);
+                    
+                    // Center and scale model
+                    centerModel(currentModel);
+                    
+                    // Setup animations if available
+                    if (gltf.animations && gltf.animations.length > 0) {
+                        mixer = new THREE.AnimationMixer(currentModel);
+                        gltf.animations.forEach((clip) => {
+                            const action = mixer.clipAction(clip);
+                            action.play();
+                        });
+                        console.log(`Loaded ${gltf.animations.length} animations`);
+                    }
+                    
+                    // Update stats
+                    updateModelStats(currentModel);
+                    
+                    // Enable shadows on meshes
+                    currentModel.traverse((child) => {
+                        if (child.isMesh) {
+                            child.castShadow = true;
+                            child.receiveShadow = true;
+                        }
+                    });
+                    
+                    console.log('Model loaded successfully:', modelData.name);
+                },
+                (progress) => {
+                    // Loading progress
+                    if (progress.total > 0) {
+                        const percent = (progress.loaded / progress.total * 100).toFixed(0);
+                        document.getElementById('loading').textContent = `Loading ${modelData.name}... ${percent}%`;
+                    } else {
+                        document.getElementById('loading').textContent = `Loading ${modelData.name}...`;
+                    }
+                },
+                (error) => {
+                    showLoading(false);
+                    showError(`Failed to load ${modelData.name}. This might be due to CORS restrictions or the model file not being available.`);
+                    console.error('Error loading model:', error);
+                }
+            );
+        }
+
+        function centerModel(model) {
+            const box = new THREE.Box3().setFromObject(model);
+            const center = box.getCenter(new THREE.Vector3());
+            const size = box.getSize(new THREE.Vector3());
+            
+            // Center the model
+            model.position.sub(center);
+            
+            // Scale to fit in view
+            const maxDimension = Math.max(size.x, size.y, size.z);
+            const scale = 3 / maxDimension;
+            model.scale.setScalar(scale);
+        }
+
+        function updateModelStats(model) {
+            let triangles = 0;
+            let vertices = 0;
+            
+            model.traverse((child) => {
+                if (child.isMesh) {
+                    const geometry = child.geometry;
+                    if (geometry.index) {
+                        triangles += geometry.index.count / 3;
+                        vertices += geometry.attributes.position.count;
+                    } else {
+                        triangles += geometry.attributes.position.count / 3;
+                        vertices += geometry.attributes.position.count;
+                    }
+                }
+            });
+            
+            stats.triangles = Math.floor(triangles);
+            stats.vertices = vertices;
+            
+            document.getElementById('triangles').textContent = stats.triangles.toLocaleString();
+            document.getElementById('vertices').textContent = stats.vertices.toLocaleString();
+        }
+
+        function setupEventListeners() {
+            // Controls
+            document.getElementById('rotation-speed').addEventListener('input', (e) => {
+                window.rotationSpeed = parseFloat(e.target.value);
+            });
+
+            document.getElementById('camera-distance').addEventListener('input', (e) => {
+                camera.position.z = parseFloat(e.target.value);
+            });
+
+            document.getElementById('light-intensity').addEventListener('input', (e) => {
+                scene.children.forEach(child => {
+                    if (child.isDirectionalLight) {
+                        child.intensity = parseFloat(e.target.value);
+                    }
+                });
+            });
+
+            document.getElementById('auto-rotate').addEventListener('change', (e) => {
+                window.autoRotate = e.target.checked;
+            });
+
+            document.getElementById('show-wireframe').addEventListener('change', (e) => {
+                if (currentModel) {
+                    currentModel.traverse((child) => {
+                        if (child.isMesh) {
+                            child.material.wireframe = e.target.checked;
+                        }
+                    });
+                }
+            });
+
+            document.getElementById('show-stats').addEventListener('change', (e) => {
+                document.getElementById('stats').style.display = e.target.checked ? 'block' : 'none';
+            });
+
+            // Window resize
+            window.addEventListener('resize', onWindowResize);
+            
+            // Initialize values
+            window.rotationSpeed = 0.5;
+            window.autoRotate = true;
+        }
+
+        function updateInfoPanel(modelData) {
+            document.getElementById('model-title').textContent = modelData.name;
+            document.getElementById('model-file').textContent = modelData.file;
+            document.getElementById('model-description').textContent = modelData.description;
+            document.getElementById('info-panel').classList.add('visible');
+        }
+
+        function showLoading(show) {
+            document.getElementById('loading').style.display = show ? 'block' : 'none';
+        }
+
+        function hideError() {
+            document.getElementById('error').style.display = 'none';
+        }
+
+        function showError(message) {
+            document.getElementById('error-message').textContent = message;
+            document.getElementById('error').style.display = 'block';
+        }
+
+        function resetCamera() {
+            camera.position.set(0, 0, 8);
+            if (currentModel) {
+                currentModel.rotation.set(0, 0, 0);
+            }
+        }
+
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+            } else {
+                document.exitFullscreen();
+            }
+        }
+
+        function onWindowResize() {
+            const container = document.getElementById('canvas-container');
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        }
+
+        function animate() {
+            animationId = requestAnimationFrame(animate);
+            
+            const delta = clock.getDelta();
+            
+            // Update animations
+            if (mixer) {
+                mixer.update(delta);
+            }
+            
+            // Auto rotation
+            if (window.autoRotate && currentModel) {
+                currentModel.rotation.y += window.rotationSpeed * 0.01;
+            }
+            
+            // Update manual controls
+            if (window.updateControls) {
+                window.updateControls();
+            }
+            
+            // Update FPS
+            frameCount++;
+            const currentTime = performance.now();
+            if (currentTime - lastTime >= 1000) {
+                stats.fps = Math.round(frameCount * 1000 / (currentTime - lastTime));
+                document.getElementById('fps').textContent = stats.fps;
+                frameCount = 0;
+                lastTime = currentTime;
+            }
+            
+            renderer.render(scene, camera);
+        }
+
+        // Initialize when DOM is loaded
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
